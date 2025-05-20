@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Co-Clone IDE</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.40.0/min/vs/loader.min.js"></script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+        .ide-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .navbar {
+            padding: 0.5rem 1rem;
+        }
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 240px;
+            background-color: #252526;
+            color: #fff;
+            overflow-y: auto;
+            border-right: 1px solid #1e1e1e;
+        }
+        .editor-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        .editor-tabs {
+            background-color: #2d2d2d;
+            color: #ccc;
+            border-bottom: 1px solid #1e1e1e;
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        .editor-tab {
+            display: inline-block;
+            padding: 5px 15px;
+            margin: 0;
+            cursor: pointer;
+            border-right: 1px solid #1e1e1e;
+            position: relative;
+        }
+        .editor-tab.active {
+            background-color: #1e1e1e;
+            color: #fff;
+        }
+        .editor-tab .close-tab {
+            margin-left: 8px;
+            opacity: 0.6;
+            font-size: 14px;
+        }
+        .editor-tab .close-tab:hover {
+            opacity: 1;
+        }
+        .editor-tab-add {
+            padding: 5px 10px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        .editor-tab-add:hover {
+            background-color: #37373d;
+        }
+        #monaco-editor {
+            width: 100%;
+            height: calc(100% - 30px);
+        }
+        .status-bar {
+            height: 22px;
+            background-color: #007acc;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 12px;
+        }
+        .tree-view {
+            padding: 5px;
+        }
+        .file-item {
+            padding: 2px 5px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-item:hover {
+            background-color: #37373d;
+        }
+        .file-item.active {
+            background-color: #094771;
+        }
+        .file-icon {
+            margin-right: 5px;
+        }
+        .folder .folder-content {
+            margin-left: 15px;
+        }
+        .suggestion-popup {
+            position: absolute;
+            z-index: 1000;
+            background-color: #1e1e1e;
+            border: 1px solid #454545;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            max-width: 500px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        .suggestion-content {
+            padding: 10px;
+            color: #dcdcdc;
+            font-family: 'Consolas', 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+        .suggestion-header {
+            background-color: #2c2c2c;
+            padding: 5px 10px;
+            font-weight: bold;
+            color: #cccccc;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .changes-panel {
+            position: absolute;
+            bottom: 22px;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background-color: #1e1e1e;
+            border-top: 1px solid #333;
+            display: none;
+            flex-direction: column;
+        }
+        .changes-header {
+            background-color: #2d2d2d;
+            padding: 5px 10px;
+            font-weight: bold;
+            color: #ccc;
+            display: flex;
+            justify-content: space-between;
+        }
+        .changes-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            color: #dcdcdc;
+        }
+        .change-item {
+            margin-bottom: 10px;
+            border-left: 3px solid #007acc;
+            padding-left: 10px;
+        }
+        .change-item.applied {
+            border-left: 3px solid #4caf50;
+        }
+        .close-btn {
+            cursor: pointer;
+        }
+        .diff-view {
+            background-color: #1e1e1e;
+            color: #dcdcdc;
+            font-family: 'Consolas', 'Courier New', monospace;
+            padding: 5px;
+            margin-top: 5px;
+            border-radius: 3px;
+        }
+        .diff-old {
+            background-color: rgba(255, 0, 0, 0.2);
+            text-decoration: line-through;
+        }
+        .diff-new {
+            background-color: rgba(0, 255, 0, 0.2);
+        }
+        .action-btn {
+            color: #007acc;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .action-btn:hover {
+            text-decoration: underline;
+        }
+        .action-btn:disabled {
+            color: #666;
+            cursor: default;
+            text-decoration: none;
+        }
+        .monaco-editors-container {
+            width: 100%;
+            height: calc(100% - 30px);
+            position: relative;
+        }
+        .monaco-editor-instance {
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+        .monaco-editor-instance.active {
+            display: block;
+        }
+        .real-time-suggestion {
+            position: absolute;
+            z-index: 5;
+            background-color: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 3px;
+            padding: 5px;
+            font-size: 12px;
+            color: #dcdcdc;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+        }
+        .hint-marker {
+            position: absolute;
+            background-color: rgba(0, 120, 215, 0.1);
+            border-left: 2px solid #0078d7;
+            box-sizing: border-box;
+        }
+        .parameter-hint {
+            position: absolute;
+            z-index: 1000;
+            background-color: #252526;
+            border: 1px solid #454545;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            border-radius: 3px;
+            padding: 8px;
+            font-size: 12px;
+            color: #dcdcdc;
+            max-width: 300px;
+        }
+        .parameter-hint-header {
+            font-weight: bold;
+            padding-bottom: 3px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #3c3c3c;
+            color: #9cdcfe;
+        }
+        .parameter-hint-content {
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+        .parameter-name {
+            color: #9cdcfe;
+            font-weight: bold;
+        }
+        .parameter-type {
+            color: #4ec9b0;
+            font-style: italic;
+        }
+        .function-change-alert {
+            position: absolute;
+            right: 20px;
+            bottom: 50px;
+            background-color: #0d47a1;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            animation: fade-in 0.3s;
+            cursor: pointer;
+            display: none;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .changes-panel {
+            height: 250px;
+            background-color: #1e1e1e;
+            border-top: 2px solid #007acc;
+        }
+        .changes-header {
+            background-color: #252526;
+            padding: 8px 10px;
+            font-weight: bold;
+            color: #f0f0f0;
+        }
+        .changes-content {
+            padding: 15px;
+        }
+        .change-item {
+            margin-bottom: 15px;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #333;
+            background-color: #252526;
+        }
+        .change-header {
+            padding: 8px 12px;
+            background-color: #2d2d2d;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .change-location {
+            padding: 5px 12px;
+            font-size: 12px;
+            color: #aaa;
+            background-color: #222;
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
+        }
+        .diff-view {
+            padding: 8px 12px;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+        .diff-old {
+            padding: 5px;
+            margin-bottom: 5px;
+            background-color: rgba(255, 0, 0, 0.08);
+            color: #f88;
+            border-radius: 3px;
+        }
+        .diff-new {
+            padding: 5px;
+            background-color: rgba(0, 255, 0, 0.08);
+            color: #8f8;
+            border-radius: 3px;
+        }
+        .action-buttons {
+            padding: 0 12px 10px;
+        }
+        #functionChangeAlert {
+            animation: pulse 2s infinite;
+            background-color: #252526;
+            color: #f0f0f0;
+            border: 1px solid #007acc;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 122, 204, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 122, 204, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 122, 204, 0); }
+        }
+        .action-btn:hover, 
+        .btn-outline-primary:hover, 
+        .btn-outline-secondary:hover {
+            text-decoration: none;
+            background-color: #2c2c2c;
+        }
+        .close-btn:hover {
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="ide-container">
+        <nav class="navbar navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">
+                    <img src="https://raw.githubusercontent.com/microsoft/vscode-docs/main/images/vscode-icon.png" alt="VS Code Icon" width="24" height="24" class="d-inline-block align-text-top me-2">
+                    Co-Clone IDE
+                </a>
+                <div class="d-flex">
+                    <button id="scanBtn" class="btn btn-outline-light btn-sm me-2">
+                        <i class="fas fa-sync-alt me-1"></i> Scan Codebase
+                    </button>
+                    <button id="showChangesBtn" class="btn btn-outline-light btn-sm me-2">
+                        <i class="fas fa-code-branch me-1"></i> Function Changes
+                    </button>
+                    <button id="uploadFileBtn" class="btn btn-outline-light btn-sm me-2">
+                        <i class="fas fa-upload me-1"></i> Upload File
+                    </button>
+                    <button id="saveFileBtn" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-save me-1"></i> Save
+                    </button>
+                </div>
+            </div>
+            
+            <!-- File Upload Modal -->
+            <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content bg-dark text-light">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Upload File</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="uploadForm">
+                                <div class="mb-3">
+                                    <label for="fileInput" class="form-label">Select File</label>
+                                    <input type="file" class="form-control bg-dark text-light" id="fileInput">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="savePath" class="form-label">Save Path (relative to project root)</label>
+                                    <input type="text" class="form-control bg-dark text-light" id="savePath" placeholder="examples/my_file.py">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="confirmUpload">Upload</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="tree-view" id="fileTree">
+                    <!-- File tree will be rendered here dynamically -->
+                    <div class="p-2">
+                        <button id="refreshFileTree" class="btn btn-sm btn-outline-secondary mb-2">
+                            <i class="fas fa-sync-alt"></i> Refresh Files
+                        </button>
+                        <div id="fileTreeLoader" class="spinner-border text-light spinner-border-sm" role="status" style="display: none;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="editor-container">
+                <div class="editor-tabs">
+                    <div class="editor-tab active" data-file="examples/app_example.py">
+                        app_example.py
+                        <span class="close-tab">×</span>
+                    </div>
+                    <div class="editor-tab-add">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                </div>
+                <div class="monaco-editors-container">
+                    <div id="monaco-editor-examples-app_example.py" class="monaco-editor-instance active" data-file="examples/app_example.py"></div>
+                </div>
+                
+                <div class="suggestion-popup" id="suggestionPopup">
+                    <div class="suggestion-header">
+                        <span>Co-Clone Suggestion</span>
+                        <span class="close-btn" onclick="closeSuggestion()">×</span>
+                    </div>
+                    <div class="suggestion-content" id="suggestionContent"></div>
+                </div>
+                
+                <div class="parameter-hint" id="parameterHint" style="display: none;">
+                    <div class="parameter-hint-header">Function Parameters</div>
+                    <div class="parameter-hint-content" id="parameterHintContent"></div>
+                </div>
+                
+                <div class="function-change-alert" id="functionChangeAlert">
+                    Function signature changes detected! Click to review updates.
+                </div>
+                
+                <div class="changes-panel" id="changesPanel">
+                    <div class="changes-header">
+                        <span>Function Changes</span>
+                        <span class="close-btn" onclick="closeChangesPanel()">×</span>
+                    </div>
+                    <div class="changes-content" id="changesContent">
+                        <!-- Changes will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <span id="lineColumn">Ln 1, Col 1</span>
+            <span class="ms-auto" id="statusMessage">Ready</span>
+        </div>
+    </div>
+    
+    <!-- Add enhanced UI elements for function tracking -->
+    <div id="functionChangeAlert" class="alert alert-info" style="display: none; position: fixed; bottom: 30px; right: 30px; z-index: 1000; max-width: 400px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+        <i class="fas fa-code-branch"></i> <span id="functionChangeCount">0</span> function signature changes detected 
+        <button type="button" class="btn-close float-end" aria-label="Close"></button>
+    </div>
+
+    <div id="inlineFunctionSuggestion" class="inline-suggestion" style="display: none; position: absolute; z-index: 10; background-color: #252526; border: 1px solid #3c3c3c; border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); padding: 8px; font-size: 13px; color: #dcdcdc; max-width: 500px;">
+        <div class="suggestion-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-lightbulb text-warning"></i> Function suggestion</span>
+            <div>
+                <button class="btn btn-sm btn-outline-primary accept-btn"><i class="fas fa-check"></i></button>
+                <button class="btn btn-sm btn-outline-secondary dismiss-btn"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <pre id="inlineFunctionContent" class="suggestion-content" style="margin-top: 5px; background-color: #1e1e1e; padding: 5px; border-radius: 3px;"></pre>
+    </div>
+
+    <div id="autocompleteHint" class="real-time-suggestion" style="display: none; position: absolute; z-index: 5; background-color: #1e1e1e; border: 1px solid #3c3c3c; border-radius: 3px; padding: 5px; font-size: 12px; color: #dcdcdc; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); max-width: 500px;">
+        <div class="suggestion-header">
+            <span>Co-Clone Suggestion</span>
+        </div>
+        <pre id="autocompleteContent" class="suggestion-content"></pre>
+    </div>
+
+    <div id="parameterHint" class="parameter-hint" style="display: none; position: absolute; z-index: 10; background-color: #252526; border: 1px solid #454545; box-shadow: 0 2px 8px rgba(0,0,0,0.6); border-radius: 3px; padding: 8px; font-size: 12px; color: #dcdcdc; max-width: 300px;">
+        <div class="parameter-hint-header">
+            Function Parameters
+        </div>
+        <div id="parameterHintContent"></div>
+    </div>
+
+    <!-- Changes panel enhancement -->
+    <div class="changes-panel" style="display: none; max-height: 300px; overflow-y: auto; background-color: #252526; border: 1px solid #3c3c3c; border-radius: 3px; padding: 10px; margin-top: 10px;">
+        <h5 class="panel-title"><i class="fas fa-code-branch"></i> Function Changes</h5>
+        <div id="changesContent"></div>
+    </div>
+
+    <script>
+        // Initialize variables
+        let editors = {};
+        let currentFile = "examples/app_example.py";
+        let openFiles = ["examples/app_example.py"];
+        let fileContents = {};
+        let functionDefinitions = {};
+        let functionUsages = {};
+        let monaco;
+        
+        // Connection and token management
+        let proxyToken = null;
+        let proxyTokenExpiry = 0;
+        let currentActiveRequest = null;
+        let requestId = null;
+        let debounceTimer = null;
+        let completionTimer = null;
+        let lastCursorPosition = null;
+        let typingPrediction = {
+            isFastTyping: false,
+            typingSpeed: 0,
+            lastKeyTime: 0,
+            keyTimes: []
+        };
+        
+        // Variables to control real-time behavior
+        let lastEditTime = Date.now();
+        let functionScanInterval = null;
+        let realTimeCompletionTimeout = null;
+        let isCompletionVisible = false;
+        let lastContent = "";
+        
+        // Initialize Monaco Editor
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.40.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            monaco = window.monaco;
+            
+            // Set up editor with VS Code like theme
+            monaco.editor.defineTheme('vscode-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#1e1e1e',
+                }
+            });
+            
+            // Create the initial editor
+            createEditor("examples/app_example.py");
+            
+            // Load initial file and scan codebase
+            loadFile(currentFile);
+            scanCodebase();
+            
+            // Set up parameter hints provider
+            monaco.languages.registerSignatureHelpProvider('javascript', {
+                signatureHelpTriggerCharacters: ['(', ','],
+                provideSignatureHelp: function(model, position) {
+                    // This is a simple implementation - in a real app, this would be more robust
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const functionMatch = lineContent.substring(0, position.column).match(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
+                    
+                    if (functionMatch && functionDefinitions[functionMatch[1]]) {
+                        const funcDef = functionDefinitions[functionMatch[1]];
+                        showParameterHint(funcDef, position);
+                    }
+                    
+                    return null;
+                }
+            });
+            
+            // Set up parameter hints provider for Python
+            monaco.languages.registerSignatureHelpProvider('python', {
+                signatureHelpTriggerCharacters: ['(', ','],
+                provideSignatureHelp: function(model, position) {
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const functionMatch = lineContent.substring(0, position.column).match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+                    
+                    if (functionMatch && functionDefinitions[functionMatch[1]]) {
+                        const funcDef = functionDefinitions[functionMatch[1]];
+                        showParameterHint(funcDef, position);
+                    }
+                    
+                    return null;
+                }
+            });
+        });
+        
+        // Create a new editor instance
+        function createEditor(filePath) {
+            const fileId = filePath.replace(/[\/\.]/g, '-');
+            const editorId = `monaco-editor-${fileId}`;
+            
+            // Create editor container if it doesn't exist
+            if (!document.getElementById(editorId)) {
+                const editorContainer = document.createElement('div');
+                editorContainer.id = editorId;
+                editorContainer.className = 'monaco-editor-instance';
+                editorContainer.dataset.file = filePath;
+                document.querySelector('.monaco-editors-container').appendChild(editorContainer);
+            }
+            
+            // Create editor if it doesn't exist
+            if (!editors[filePath]) {
+                const editorInstance = monaco.editor.create(document.getElementById(editorId), {
+                    language: getLanguageFromFilePath(filePath),
+                    theme: 'vscode-dark',
+                    automaticLayout: true,
+                    scrollBeyondLastLine: false,
+                    minimap: { enabled: true },
+                    lineNumbers: 'on',
+                    glyphMargin: true,
+                    folding: true,
+                    contextmenu: true,
+                    fontSize: 14,
+                    lineHeight: 21
+                });
+                
+                // Set up event for content changes with debounce
+                let debounceTimer;
+                editorInstance.onDidChangeModelContent(function(e) {
+                    clearTimeout(debounceTimer);
+                    
+                    // Update typing prediction model
+                    updateTypingPredictionModel(e);
+                    
+                    // Cancel any active request as content has changed
+                    cancelCurrentRequest();
+                    
+                    // If we're actively typing, don't issue completion request immediately
+                    if (typingPrediction.isFastTyping) {
+                        // Wait longer since user is actively typing
+                        debounceTimer = setTimeout(function() {
+                            requestCompletion(editorInstance);
+                        }, 500); // Longer debounce for fast typing
+                    } else {
+                        // Standard debounce for regular typing
+                        debounceTimer = setTimeout(function() {
+                            requestCompletion(editorInstance);
+                        }, 200);
+                    }
+                });
+                
+                // Update line and column position
+                editorInstance.onDidChangeCursorPosition(function(e) {
+                    document.getElementById('lineColumn').textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+                });
+                
+                editors[filePath] = editorInstance;
+            }
+            
+            // Set up real-time features
+            editors[filePath].onDidChangeCursorPosition((e) => {
+                requestRealTimeCompletion();
+            });
+            
+            editors[filePath].onDidChangeModelContent((e) => {
+                lastEditTime = Date.now();
+                if (e.changes.some(change => change.text.includes('\n'))) {
+                    detectFunctionChanges(filePath);
+                }
+            });
+            
+            return editors[filePath];
+        }
+        
+        // Activate a specific editor by file path
+        function activateEditor(filePath) {
+            // Deactivate all editors
+            document.querySelectorAll('.monaco-editor-instance').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.editor-tab').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Activate the requested editor
+            const fileId = filePath.replace(/[\/\.]/g, '-');
+            const editorElement = document.getElementById(`monaco-editor-${fileId}`);
+            if (editorElement) {
+                editorElement.classList.add('active');
+            }
+            
+            // Activate the related tab
+            const tab = document.querySelector(`.editor-tab[data-file="${filePath}"]`);
+            if (tab) {
+                tab.classList.add('active');
+            }
+            
+            // Update current file
+            currentFile = filePath;
+            
+            // Focus the editor
+            if (editors[filePath]) {
+                editors[filePath].focus();
+            }
+        }
+        
+        // Get language ID from file path
+        function getLanguageFromFilePath(filePath) {
+            const fileExt = filePath.split('.').pop().toLowerCase();
+            
+            if (fileExt === 'py') return 'python';
+            else if (fileExt === 'js') return 'javascript';
+            else if (fileExt === 'html') return 'html';
+            else if (fileExt === 'css') return 'css';
+            else if (fileExt === 'json') return 'json';
+            else if (fileExt === 'md') return 'markdown';
+            
+            return 'plaintext';
+        }
+        
+        // Add a new tab
+        function addTab(filePath) {
+            if (!openFiles.includes(filePath)) {
+                openFiles.push(filePath);
+            }
+            
+            // Check if tab already exists
+            const existingTab = document.querySelector(`.editor-tab[data-file="${filePath}"]`);
+            if (existingTab) {
+                activateEditor(filePath);
+                return;
+            }
+            
+            // Create editor for the file
+            createEditor(filePath);
+            
+            // Create a new tab
+            const tabElement = document.createElement('div');
+            tabElement.className = 'editor-tab';
+            tabElement.dataset.file = filePath;
+            
+            const fileName = filePath.split('/').pop();
+            tabElement.innerHTML = `
+                ${fileName}
+                <span class="close-tab">×</span>
+            `;
+            
+            // Insert before the add tab button
+            const tabsContainer = document.querySelector('.editor-tabs');
+            tabsContainer.insertBefore(tabElement, document.querySelector('.editor-tab-add'));
+            
+            // Load the file content
+            loadFile(filePath);
+            
+            // Activate the new editor
+            activateEditor(filePath);
+        }
+        
+        // Close a tab
+        function closeTab(filePath) {
+            // Remove from open files
+            openFiles = openFiles.filter(file => file !== filePath);
+            
+            // Remove tab
+            const tab = document.querySelector(`.editor-tab[data-file="${filePath}"]`);
+            if (tab) {
+                tab.remove();
+            }
+            
+            // Remove editor instance from DOM
+            const fileId = filePath.replace(/[\/\.]/g, '-');
+            const editorElement = document.getElementById(`monaco-editor-${fileId}`);
+            if (editorElement) {
+                editorElement.remove();
+            }
+            
+            // If this was the active tab, activate another one
+            if (currentFile === filePath && openFiles.length > 0) {
+                activateEditor(openFiles[openFiles.length - 1]);
+            } else if (openFiles.length === 0) {
+                // If no tabs left, clear the editor area
+                document.querySelector('.editor-tabs').innerHTML = `
+                    <div class="editor-tab-add">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                `;
+                document.querySelector('.monaco-editors-container').innerHTML = '';
+                currentFile = null;
+            }
+        }
+        
+        // Show parameter hint
+        function showParameterHint(functionDef, position) {
+            const paramHint = document.getElementById('parameterHint');
+            const paramHintContent = document.getElementById('parameterHintContent');
+            
+            // Format the parameter hint
+            let content = `<strong>${functionDef.file.split('/').pop()}:</strong> `;
+            
+            if (functionDef.signature) {
+                // Split parameters and format them
+                const params = functionDef.signature.split(',');
+                content += params.map(param => {
+                    const parts = param.trim().split('=');
+                    const paramName = parts[0].trim();
+                    const defaultValue = parts.length > 1 ? parts[1].trim() : null;
+                    
+                    return `<span class="parameter-name">${paramName}</span>${defaultValue ? ` = ${defaultValue}` : ''}`;
+                }).join(', ');
+            }
+            
+            paramHintContent.innerHTML = content;
+            
+            // Calculate position
+            const editor = editors[currentFile];
+            const editorCoords = editor.getScrolledVisiblePosition(position);
+            const editorContainer = document.querySelector('.editor-container');
+            const containerRect = editorContainer.getBoundingClientRect();
+            
+            paramHint.style.left = (containerRect.left + editorCoords.left) + 'px';
+            paramHint.style.top = (containerRect.top + editorCoords.top + 20) + 'px';
+            paramHint.style.display = 'block';
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                paramHint.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Event listeners for tabs
+        document.addEventListener('click', function(e) {
+            // Tab click
+            if (e.target.closest('.editor-tab') && !e.target.closest('.close-tab')) {
+                const tab = e.target.closest('.editor-tab');
+                if (tab.dataset.file) {
+                    activateEditor(tab.dataset.file);
+                }
+            }
+            
+            // Close tab
+            if (e.target.closest('.close-tab')) {
+                const tab = e.target.closest('.editor-tab');
+                if (tab.dataset.file) {
+                    closeTab(tab.dataset.file);
+                }
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            
+            // Add new tab
+            if (e.target.closest('.editor-tab-add')) {
+                // Show a simple dropdown of available files
+                const fileSelector = document.createElement('div');
+                fileSelector.className = 'file-selector';
+                fileSelector.style.position = 'absolute';
+                fileSelector.style.zIndex = '1000';
+                fileSelector.style.backgroundColor = '#252526';
+                fileSelector.style.border = '1px solid #3c3c3c';
+                fileSelector.style.borderRadius = '3px';
+                fileSelector.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.6)';
+                fileSelector.style.padding = '5px';
+                fileSelector.style.maxHeight = '300px';
+                fileSelector.style.overflowY = 'auto';
+                
+                // Get all files from the file tree
+                const files = Array.from(document.querySelectorAll('.file-item[data-file]')).map(item => item.dataset.file);
+                
+                // Generate file list HTML
+                fileSelector.innerHTML = files.map(file => `
+                    <div class="file-selector-item" data-file="${file}">
+                        <i class="file-icon ${getFileIconClass(file)}"></i>
+                        ${file}
+                    </div>
+                `).join('');
+                
+                // Style the items
+                fileSelector.querySelectorAll('.file-selector-item').forEach(item => {
+                    item.style.padding = '5px';
+                    item.style.cursor = 'pointer';
+                    item.style.color = '#ccc';
+                });
+                
+                // Position the selector
+                const rect = e.target.closest('.editor-tab-add').getBoundingClientRect();
+                fileSelector.style.top = (rect.bottom + 5) + 'px';
+                fileSelector.style.left = rect.left + 'px';
+                
+                // Add to DOM
+                document.body.appendChild(fileSelector);
+                
+                // Click handler for file selection
+                fileSelector.addEventListener('click', function(e) {
+                    if (e.target.closest('.file-selector-item')) {
+                        const file = e.target.closest('.file-selector-item').dataset.file;
+                        addTab(file);
+                        document.body.removeChild(fileSelector);
+                    }
+                });
+                
+                // Close when clicking elsewhere
+                document.addEventListener('click', function closeSelector(e) {
+                    if (!e.target.closest('.file-selector') && !e.target.closest('.editor-tab-add')) {
+                        if (document.body.contains(fileSelector)) {
+                            document.body.removeChild(fileSelector);
+                        }
+                        document.removeEventListener('click', closeSelector);
+                    }
+                });
+            }
+            
+            // Function change alert click
+            if (e.target.closest('#functionChangeAlert')) {
+                document.getElementById('functionChangeAlert').style.display = 'none';
+                showChangesPanel();
+            }
+        });
+        
+        // Get file icon class based on file extension
+        function getFileIconClass(filePath) {
+            const fileExt = filePath.split('.').pop().toLowerCase();
+            
+            if (fileExt === 'py') return 'fab fa-python';
+            else if (fileExt === 'js') return 'fab fa-js';
+            else if (fileExt === 'html') return 'fab fa-html5';
+            else if (fileExt === 'css') return 'fab fa-css3';
+            else if (fileExt === 'json') return 'fas fa-code';
+            else if (fileExt === 'md') return 'fab fa-markdown';
+            
+            return 'fas fa-file-code';
+        }
+        
+        // File tree click handler
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.file-item') && e.target.closest('.file-item').dataset.file) {
+                const fileItem = e.target.closest('.file-item');
+                const filename = fileItem.dataset.file;
+                
+                // Update active class in file tree
+                document.querySelectorAll('.file-item').forEach(item => item.classList.remove('active'));
+                fileItem.classList.add('active');
+                
+                // Add a new tab or switch to existing tab
+                addTab(filename);
+            }
+        });
+        
+        // Load file content
+        function loadFile(filename) {
+            currentFile = filename;
+            document.querySelector('.editor-tab.active').textContent = filename.split('/').pop();
+            
+            fetch('/read-file?path=' + encodeURIComponent(filename))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error("Error loading file:", data.error);
+                        return;
+                    }
+                    
+                    fileContents[filename] = data.content;
+                    
+                    // Set editor language based on file extension
+                    const fileExt = filename.split('.').pop().toLowerCase();
+                    let language = 'plaintext';
+                    
+                    if (fileExt === 'py') language = 'python';
+                    else if (fileExt === 'js') language = 'javascript';
+                    else if (fileExt === 'html') language = 'html';
+                    else if (fileExt === 'css') language = 'css';
+                    else if (fileExt === 'json') language = 'json';
+                    else if (fileExt === 'md') language = 'markdown';
+                    
+                    monaco.editor.setModelLanguage(editors[filename].getModel(), language);
+                    
+                    // Set content
+                    editors[filename].setValue(data.content);
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                });
+        }
+        
+        // Show in-editor suggestion
+        function showSuggestion(content, position) {
+            const suggestionPopup = document.getElementById('suggestionPopup');
+            const suggestionContent = document.getElementById('suggestionContent');
+            
+            suggestionContent.textContent = content;
+            
+            // Calculate position
+            const editorCoords = editors[currentFile].getScrolledVisiblePosition(position);
+            const editorContainer = document.querySelector('.editor-container');
+            const containerRect = editorContainer.getBoundingClientRect();
+            
+            suggestionPopup.style.left = (containerRect.left + editorCoords.left) + 'px';
+            suggestionPopup.style.top = (containerRect.top + editorCoords.top + 20) + 'px';
+            suggestionPopup.style.display = 'block';
+        }
+        
+        // Close suggestion popup
+        function closeSuggestion() {
+            document.getElementById('suggestionPopup').style.display = 'none';
+        }
+        
+        // Show changes panel
+        function showChangesPanel() {
+            document.getElementById('changesPanel').style.display = 'flex';
+        }
+        
+        // Close changes panel
+        function closeChangesPanel() {
+            document.getElementById('changesPanel').style.display = 'none';
+        }
+        
+        // Scan codebase button
+        document.getElementById('scanBtn').addEventListener('click', scanCodebase);
+        
+        // Show changes button
+        document.getElementById('showChangesBtn').addEventListener('click', function() {
+            detectFunctionChanges(currentFile);
+            showChangesPanel();
+        });
+        
+        // Scan codebase for functions
+        function scanCodebase() {
+            fetch('/scan-codebase')
+                .then(response => response.json())
+                .then(data => {
+                    functionDefinitions = data.definitions;
+                    functionUsages = data.usages;
+                    
+                    // Update status
+                    document.getElementById('statusMessage').textContent = 
+                        `Codebase scanned: ${Object.keys(functionDefinitions).length} functions found`;
+                })
+                .catch(error => {
+                    console.error("Error scanning codebase:", error);
+                });
+        }
+        
+        // Enhanced function change detection
+        function detectFunctionChanges(filePath) {
+            const content = editors[filePath].getValue();
+            
+            // Save current file content
+            fileContents[filePath] = content;
+            
+            // Show loading indicator
+            document.getElementById('statusMessage').textContent = 'Analyzing code changes...';
+            
+            // Check for function changes
+            fetch('/detect-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_path: filePath, code: content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Update global state with latest function information
+                if (data.function_definitions) {
+                    functionDefinitions = data.function_definitions;
+                }
+                if (data.function_usages) {
+                    functionUsages = data.function_usages;
+                }
+                
+                // Display suggestions if there are any
+                if (data.changed_functions && data.changed_functions.length > 0) {
+                    // Highlight modified functions in the editor
+                    data.changed_functions.forEach(func => {
+                        highlightModifiedFunction(filePath, func.name);
+                    });
+                }
+                
+                // Display update suggestions if there are any
+                if (data.update_suggestions && data.update_suggestions.length > 0) {
+                    displayFunctionChanges(data.update_suggestions);
+                    
+                    // Show function change alert with count
+                    const alert = document.getElementById('functionChangeAlert');
+                    document.getElementById('functionChangeCount').textContent = data.update_suggestions.length;
+                    alert.style.display = 'block';
+                    
+                    // Auto-hide alert after 8 seconds unless hovered
+                    const alertTimeout = setTimeout(() => {
+                        alert.style.display = 'none';
+                    }, 8000);
+                    
+                    alert.addEventListener('mouseenter', () => {
+                        clearTimeout(alertTimeout);
+                    });
+                    
+                    // Update status
+                    document.getElementById('statusMessage').textContent = 
+                        `Function changes detected: ${data.update_suggestions.length} usages affected`;
+                } else {
+                    // Update status
+                    document.getElementById('statusMessage').textContent = 
+                        `Functions tracked: ${Object.keys(functionDefinitions).length}`;
+                }
+            })
+            .catch(error => {
+                console.error("Error detecting changes:", error);
+                document.getElementById('statusMessage').textContent = 'Error detecting function changes';
+            });
+        }
+        
+        // Highlight a modified function in the editor
+        function highlightModifiedFunction(filePath, funcName) {
+            if (!editors[filePath]) return;
+            
+            const editor = editors[filePath];
+            const model = editor.getModel();
+            const text = model.getValue();
+            
+            // Find the function declaration position
+            let functionMatch;
+            
+            if (filePath.endsWith('.py')) {
+                // Python function pattern
+                const pattern = new RegExp(`def\\s+${funcName}\\s*\\(`, 'g');
+                functionMatch = pattern.exec(text);
+            } else if (filePath.endsWith('.js') || filePath.endsWith('.ts')) {
+                // JavaScript/TypeScript patterns
+                const patterns = [
+                    new RegExp(`function\\s+${funcName}\\s*\\(`, 'g'),
+                    new RegExp(`${funcName}\\s*\\(.*?\\)\\s*{`, 'g'),
+                    new RegExp(`const\\s+${funcName}\\s*=\\s*\\(`, 'g')
+                ];
+                
+                for (const pattern of patterns) {
+                    functionMatch = pattern.exec(text);
+                    if (functionMatch) break;
+                }
+            }
+            
+            if (functionMatch) {
+                // Get line number of the function declaration
+                const upToMatch = text.substring(0, functionMatch.index);
+                const lineNumber = upToMatch.split('\n').length;
+                
+                // Add decorations to highlight the modified function
+                const decorations = [{
+                    range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'modified-function-line',
+                        glyphMarginClassName: 'modified-function-glyph'
+                    }
+                }];
+                
+                // Add the decoration to the editor
+                editor.deltaDecorations([], decorations);
+                
+                // Add CSS if not already added
+                if (!document.getElementById('function-change-styles')) {
+                    const style = document.createElement('style');
+                    style.id = 'function-change-styles';
+                    style.textContent = `
+                        .modified-function-line {
+                            background-color: rgba(255, 193, 7, 0.1);
+                            border-left: 3px solid #ffc107;
+                        }
+                        .modified-function-glyph {
+                            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="%23ffc107" d="M7.75 2a.75.75 0 01.75.75V7h4.25a.75.75 0 110 1.5H8.5v4.25a.75.75 0 11-1.5 0V8.5H2.75a.75.75 0 010-1.5H7V2.75A.75.75 0 017.75 2z"/></svg>') no-repeat center center;
+                            width: 16px;
+                            margin-left: 2px;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            }
+        }
+        
+        // Display function changes with detailed information
+        function displayFunctionChanges(suggestions) {
+            const changesContent = document.getElementById('changesContent');
+            changesContent.innerHTML = '';
+            
+            // Update the alert count
+            document.getElementById('functionChangeCount').textContent = suggestions.length;
+            
+            suggestions.forEach((suggestion, index) => {
+                const changeItem = document.createElement('div');
+                changeItem.className = 'change-item card my-2';
+                changeItem.setAttribute('data-file', suggestion.file);
+                
+                // Determine the change type and display appropriate information
+                let changeTypeTitle = '';
+                let changeDetails = '';
+                let changeIcon = '';
+                
+                if (suggestion.change_type === 'rename') {
+                    // Function rename
+                    changeTypeTitle = 'Function Renamed';
+                    changeIcon = 'fa-font';
+                    changeDetails = `<div class="change-detail">
+                        <span class="badge bg-info">Renamed</span>: 
+                        <code>${suggestion.function}</code> → <code>${suggestion.new_function}</code>
+                    </div>`;
+                } else if (suggestion.change_type === 'import_update') {
+                    // Import statement update
+                    changeTypeTitle = 'Import Update Required';
+                    changeIcon = 'fa-file-import';
+                    changeDetails = `<div class="change-detail">
+                        <span class="badge bg-warning">Update Import</span>: 
+                        <code>${suggestion.function}</code> → <code>${suggestion.new_function}</code>
+                    </div>`;
+                } else {
+                    // Function signature change
+                    changeTypeTitle = 'Function Signature Changed';
+                    changeIcon = 'fa-code';
+                    
+                    if (suggestion.detailed_changes) {
+                        const changes = suggestion.detailed_changes;
+                        
+                        if (changes.added && changes.added.length > 0) {
+                            changeDetails += `<div class="change-detail">
+                                <span class="badge bg-success">Added params</span>: 
+                                ${changes.added.map(p => `<code>${p[0]}${p[1] ? '='+p[1] : ''}</code>`).join(', ')}
+                            </div>`;
+                        }
+                        
+                        if (changes.removed && changes.removed.length > 0) {
+                            changeDetails += `<div class="change-detail">
+                                <span class="badge bg-danger">Removed params</span>: 
+                                ${changes.removed.map(p => `<code>${p[0]}</code>`).join(', ')}
+                            </div>`;
+                        }
+                        
+                        if (changes.changed_defaults && changes.changed_defaults.length > 0) {
+                            changeDetails += `<div class="change-detail">
+                                <span class="badge bg-warning">Changed defaults</span>: 
+                                ${changes.changed_defaults.map(c => `<code>${c.name}</code> (${c.old_default || 'none'} → ${c.new_default || 'none'})`).join(', ')}
+                            </div>`;
+                        }
+                        
+                        if (changes.reordered) {
+                            changeDetails += `<div class="change-detail">
+                                <span class="badge bg-info">Reordered parameters</span>
+                            </div>`;
+                        }
+                    }
+                }
+                
+                changeItem.innerHTML = `
+                    <div class="card-header">
+                        <strong><i class="fas ${changeIcon}"></i> ${changeTypeTitle}</strong>
+                        <span class="badge bg-primary ms-2">Update Required</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <i class="fas fa-file-code"></i> 
+                            <a href="#" class="goto-link" data-file="${suggestion.file}" data-line="${suggestion.line}">
+                                ${suggestion.file}:${suggestion.line}
+                            </a>
+                            <small class="text-muted">(originally defined in ${suggestion.original_file || suggestion.file})</small>
+                        </div>
+                        
+                        ${changeDetails}
+                        
+                        <div class="diff-view mt-2 p-2 bg-dark">
+                            <div class="diff-old"><i class="fas fa-minus-circle text-danger"></i> ${suggestion.old_code}</div>
+                            <div class="diff-new"><i class="fas fa-plus-circle text-success"></i> ${suggestion.new_code}</div>
+                        </div>
+                        
+                        <div class="action-buttons mt-3">
+                            <button class="btn btn-sm btn-primary apply-btn" data-index="${index}">
+                                <i class="fas fa-check"></i> Apply Change
+                            </button>
+                            <button class="btn btn-sm btn-secondary goto-btn" data-file="${suggestion.file}" data-line="${suggestion.line}">
+                                <i class="fas fa-external-link-alt"></i> Go to Location
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                changesContent.appendChild(changeItem);
+            });
+            
+            // Add event handlers for the new buttons
+            document.querySelectorAll('.apply-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    applySuggestion(parseInt(btn.dataset.index));
+                });
+            });
+            
+            document.querySelectorAll('.goto-btn, .goto-link').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    openFileAtLocation(btn.dataset.file, parseInt(btn.dataset.line));
+                });
+            });
+            
+            showChangesPanel();
+        }
+        
+        // Apply a suggestion to the code
+        function applySuggestion(index) {
+            const changesContent = document.getElementById('changesContent');
+            const suggestions = Array.from(changesContent.querySelectorAll('.change-item'));
+            
+            if (suggestions.length <= index) {
+                console.error("Invalid suggestion index");
+                return;
+            }
+            
+            // Get the file path and content
+            const suggestionData = changesContent.querySelector(`.change-item:nth-child(${index+1})`);
+            const filePath = suggestionData.getAttribute('data-file');
+            const oldCode = suggestionData.querySelector('.diff-old').textContent;
+            const newCode = suggestionData.querySelector('.diff-new').textContent;
+            
+            // Send the update to the server
+            fetch('/update-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_path: filePath,
+                    old_code: oldCode,
+                    new_code: newCode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Refresh the file if it's currently open
+                    if (currentFile === filePath) {
+                        loadFile(filePath);
+                    }
+                    
+                    // Mark this suggestion as applied
+                    suggestionData.classList.add('applied');
+                    suggestionData.querySelector('.action-btn').textContent = 'Applied';
+                    suggestionData.querySelector('.action-btn').disabled = true;
+                    
+                    // Update status
+                    document.getElementById('statusMessage').textContent = `Change applied to ${filePath}`;
+                } else {
+                    alert(`Failed to apply change: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error("Error applying suggestion:", error);
+                alert("Failed to apply change. See console for details.");
+            });
+        }
+        
+        // Open a file at a specific line location
+        function openFileAtLocation(filePath, lineNumber) {
+            addTab(filePath);
+            
+            // Set cursor to the specified line
+            setTimeout(() => {
+                const editor = editors[filePath];
+                if (editor) {
+                    editor.revealLineInCenter(lineNumber);
+                    editor.setPosition({ lineNumber: lineNumber, column: 1 });
+                    editor.focus();
+                }
+            }, 100);
+        }
+        
+        // Upload file
+        document.getElementById('uploadFileBtn').addEventListener('click', function() {
+            const uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+            uploadModal.show();
+        });
+        
+        // Save file
+        document.getElementById('saveFileBtn').addEventListener('click', function() {
+            const content = editors[currentFile].getValue();
+            
+            // Skip if no file is open
+            if (!currentFile) {
+                alert("No file is currently open.");
+                return;
+            }
+            
+            // Save the file
+            fetch('/save-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file_path: currentFile,
+                    content: content
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('statusMessage').textContent = `File ${currentFile} saved successfully`;
+                } else {
+                    alert(`Failed to save file: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error("Error saving file:", error);
+                alert("Failed to save file. See console for details.");
+            });
+        });
+        
+        // Handle file upload
+        document.getElementById('confirmUpload').addEventListener('click', function() {
+            const fileInput = document.getElementById('fileInput');
+            const savePath = document.getElementById('savePath').value;
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Please select a file to upload.");
+                return;
+            }
+            
+            if (!savePath) {
+                alert("Please specify a save path.");
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const content = e.target.result;
+                
+                // Upload the file
+                fetch('/save-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_path: savePath,
+                        content: content
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Close the modal
+                        bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+                        
+                        // Update the file tree (would need to implement server-side file tree update)
+                        // For now, just reload the file
+                        loadFile(savePath);
+                        
+                        // Update status
+                        document.getElementById('statusMessage').textContent = `File ${savePath} uploaded successfully`;
+                    } else {
+                        alert(`Failed to upload file: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error uploading file:", error);
+                    alert("Failed to upload file. See console for details.");
+                });
+            };
+            
+            reader.readAsText(file);
+        });
+        
+        // Add to existing code near the beginning of script section
+        async function getProxyToken() {
+            try {
+                // In a real implementation, this would be fetched from an actual region based on user location
+                const response = await fetch('/proxy/token');
+                const data = await response.json();
+                
+                if (data.token) {
+                    proxyToken = data.token;
+                    proxyTokenExpiry = data.expires_at * 1000; // Convert to milliseconds
+                    console.log(`Token acquired, expires at ${new Date(proxyTokenExpiry).toLocaleTimeString()}`);
+                    
+                    // Schedule a token refresh 1 minute before expiry
+                    const timeToRefresh = proxyTokenExpiry - Date.now() - 60000;
+                    if (timeToRefresh > 0) {
+                        setTimeout(getProxyToken, timeToRefresh);
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching proxy token:", error);
+                // Retry after 30 seconds
+                setTimeout(getProxyToken, 30000);
+            }
+        }
+        
+        // Cancel the current active request if any
+        function cancelCurrentRequest() {
+            if (currentActiveRequest && requestId) {
+                // In a real implementation, this would call the proxy's cancel endpoint
+                fetch(`/proxy/v1/completions/${requestId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${proxyToken}`
+                    }
+                }).catch(err => console.log('Cancel error:', err));
+                
+                currentActiveRequest.abort();
+                currentActiveRequest = null;
+                requestId = null;
+            }
+        }
+        
+        // Add to existing code before the editor is initialized
+        function updateTypingPredictionModel(event) {
+            const now = Date.now();
+            
+            // Track typing speed
+            if (typingPrediction.lastKeyTime > 0) {
+                const timeSinceLastKey = now - typingPrediction.lastKeyTime;
+                typingPrediction.keyTimes.push(timeSinceLastKey);
+                
+                // Keep only last 10 key times
+                if (typingPrediction.keyTimes.length > 10) {
+                    typingPrediction.keyTimes.shift();
+                }
+                
+                // Calculate average typing speed (time between keypresses)
+                const avgTime = typingPrediction.keyTimes.reduce((sum, time) => sum + time, 0) / 
+                                typingPrediction.keyTimes.length;
+                
+                typingPrediction.typingSpeed = avgTime;
+                
+                // Consider fast typing if average time between keys is less than 150ms
+                typingPrediction.isFastTyping = avgTime < 150;
+            }
+            
+            typingPrediction.lastKeyTime = now;
+        }
+        
+        // Add to existing code for requesting completions with HTTP/2 streaming
+        async function requestCompletion(editor) {
+            // Don't request completion if no token available
+            if (!proxyToken || Date.now() > proxyTokenExpiry) {
+                console.log("No valid token available, refreshing...");
+                await getProxyToken();
+                if (!proxyToken) return;
+            }
+
+            const model = editor.getModel();
+            const position = editor.getPosition();
+            
+            // Store the cursor position for this request
+            lastCursorPosition = {
+                lineNumber: position.lineNumber,
+                column: position.column
+            };
+            
+            // Get the content of the file up to the cursor
+            const content = model.getValue();
+            const textUntilPosition = model.getValueInRange({
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: position.lineNumber,
+                endColumn: position.column
+            });
+            
+            // Cancel any existing request
+            cancelCurrentRequest();
+            
+            try {
+                // Create an AbortController for the fetch request
+                const controller = new AbortController();
+                currentActiveRequest = controller;
+                
+                // Make a streaming HTTP request to the proxy server
+                const response = await fetch('/proxy/v1/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${proxyToken}`
+                    },
+                    body: JSON.stringify({
+                        prompt: textUntilPosition,
+                        stream: true,
+                        max_tokens: 512
+                    }),
+                    signal: controller.signal
+                });
+                
+                // Get the request ID from the response headers for cancellation
+                requestId = response.headers.get('X-Request-ID');
+                
+                // Handle the streaming response
+                if (response.ok) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let completionText = '';
+                    
+                    // Process the stream
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        // Decode and process the chunk
+                        const chunk = decoder.decode(value, { stream: true });
+                        const lines = chunk.split('\n\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = line.substring(6);
+                                if (data === '[DONE]') {
+                                    // Stream completed
+                                    break;
+                                }
+                                
+                                try {
+                                    // In a real implementation, parse the JSON response
+                                    // Here we just append the text directly
+                                    completionText += data;
+                                    
+                                    // Check if cursor position has changed
+                                    const currentPosition = editor.getPosition();
+                                    if (
+                                        currentPosition.lineNumber !== lastCursorPosition.lineNumber ||
+                                        currentPosition.column !== lastCursorPosition.column
+                                    ) {
+                                        // User moved cursor, cancel request
+                                        cancelCurrentRequest();
+                                        break;
+                                    }
+                                    
+                                    // Display the ghost text
+                                    showGhostText(editor, completionText);
+                                } catch (e) {
+                                    console.error('Error processing completion:', e);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    console.error('Completion request failed:', response.status);
+                }
+            } catch (error) {
+                // Ignore abort errors as they're expected for cancellations
+                if (error.name !== 'AbortError') {
+                    console.error('Error requesting completion:', error);
+                }
+            } finally {
+                currentActiveRequest = null;
+                requestId = null;
+            }
+        }
+        
+        // Show ghost text for the completion
+        function showGhostText(editor, completionText) {
+            if (!completionText) return;
+            
+            const position = editor.getPosition();
+            
+            // Create a ghost text contentWidget
+            const ghostTextDecoration = {
+                position: position,
+                domNode: null,
+                getId: function() { return 'ghost-text-' + position.lineNumber + '-' + position.column; },
+                getDomNode: function() {
+                    if (!this.domNode) {
+                        this.domNode = document.createElement('div');
+                        this.domNode.className = 'real-time-suggestion';
+                        this.domNode.textContent = completionText;
+                        this.domNode.style.opacity = '0.7';
+                        this.domNode.style.fontFamily = 'monospace';
+                    }
+                    return this.domNode;
+                },
+                getPosition: function() {
+                    return {
+                        position: position,
+                        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT]
+                    };
+                }
+            };
+            
+            // Remove any existing ghost text
+            editor.removeContentWidget(ghostTextDecoration);
+            
+            // Add the new ghost text
+            editor.addContentWidget(ghostTextDecoration);
+            
+            // Auto-remove after 5 seconds if not accepted or rejected
+            clearTimeout(completionTimer);
+            completionTimer = setTimeout(() => {
+                editor.removeContentWidget(ghostTextDecoration);
+            }, 5000);
+            
+            // Add keybinding to accept suggestion (Tab key)
+            editor.addCommand(monaco.KeyCode.Tab, function() {
+                if (ghostTextDecoration.domNode && ghostTextDecoration.domNode.parentElement) {
+                    editor.executeEdits('completion', [{
+                        range: {
+                            startLineNumber: position.lineNumber,
+                            startColumn: position.column,
+                            endLineNumber: position.lineNumber,
+                            endColumn: position.column
+                        },
+                        text: completionText
+                    }]);
+                    editor.removeContentWidget(ghostTextDecoration);
+                }
+            });
+        }
+        
+        // Initialize token when the IDE loads
+        window.addEventListener('DOMContentLoaded', function() {
+            getProxyToken();
+            loadFileTree(); // Add file tree loading
+        });
+        
+        // Enhanced real-time code scanning and function tracking
+        
+        // Start real-time function change detection
+        function startRealTimeFunctionDetection() {
+            // Scan initially
+            scanCodebase();
+            
+            // Set up interval for periodic scanning
+            functionScanInterval = setInterval(() => {
+                // Only scan if there's an active file
+                if (currentFile && editors[currentFile]) {
+                    const currentContent = editors[currentFile].getValue();
+                    
+                    // Check if content has changed since last scan
+                    if (currentContent !== lastContent) {
+                        lastContent = currentContent;
+                        detectFunctionChanges(currentFile);
+                    }
+                }
+            }, 5000); // Check every 5 seconds
+        }
+        
+        // Real-time code completion
+        function requestRealTimeCompletion() {
+            if (!currentFile || !editors[currentFile]) return;
+            
+            // Get current cursor position
+            const cursor = editors[currentFile].getPosition();
+            const offset = editors[currentFile].getModel().getOffsetAt(cursor);
+            
+            // Don't request if cursor hasn't moved
+            if (lastCursorPosition === offset) return;
+            lastCursorPosition = offset;
+            
+            // Get current content
+            const content = editors[currentFile].getValue();
+            
+            // Don't make too many requests - debounce
+            clearTimeout(realTimeCompletionTimeout);
+            realTimeCompletionTimeout = setTimeout(() => {
+                fetch('/real-time-complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        code: content,
+                        cursor_position: offset,
+                        file_path: currentFile
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Show regular completion if available
+                    if (data.completion) {
+                        showRealTimeSuggestion(data.completion, cursor);
+                    }
+                    
+                    // Show function hints if available
+                    if (data.function_hints && Object.keys(data.function_hints).length > 0) {
+                        for (const [funcName, funcInfo] of Object.entries(data.function_hints)) {
+                            showParameterHint(funcInfo, cursor);
+                            break; // Just show the first one for now
+                        }
+                    }
+                    
+                    // Show function name completion if available
+                    if (data.function_suggestion) {
+                        showFunctionCompletion(data.function_suggestion, cursor);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error getting real-time completion:", error);
+                });
+            }, 300); // Debounce for 300ms
+        }
+        
+        // Display real-time suggestion
+        function showRealTimeSuggestion(suggestion, position) {
+            const hintElem = document.getElementById('autocompleteHint');
+            const contentElem = document.getElementById('autocompleteContent');
+            
+            contentElem.textContent = suggestion;
+            
+            // Calculate position
+            const editorCoords = editors[currentFile].getScrolledVisiblePosition(position);
+            const editorContainer = document.querySelector('.editor-container');
+            const containerRect = editorContainer.getBoundingClientRect();
+            
+            hintElem.style.left = (containerRect.left + editorCoords.left) + 'px';
+            hintElem.style.top = (containerRect.top + editorCoords.top + 20) + 'px';
+            hintElem.style.display = 'block';
+            isCompletionVisible = true;
+            
+            // Hide after 5 seconds if not used
+            setTimeout(() => {
+                if (isCompletionVisible) {
+                    hintElem.style.display = 'none';
+                    isCompletionVisible = false;
+                }
+            }, 5000);
+        }
+        
+        // Apply the real-time suggestion
+        function applyRealTimeSuggestion() {
+            if (!isCompletionVisible) return;
+            
+            const suggestion = document.getElementById('autocompleteContent').textContent;
+            const cursor = editors[currentFile].getPosition();
+            
+            // Insert the suggestion at cursor
+            editors[currentFile].executeEdits('real-time-suggestion', [
+                {
+                    range: new monaco.Range(
+                        cursor.lineNumber,
+                        cursor.column,
+                        cursor.lineNumber,
+                        cursor.column
+                    ),
+                    text: suggestion
+                }
+            ]);
+            
+            // Hide the suggestion
+            document.getElementById('autocompleteHint').style.display = 'none';
+            isCompletionVisible = false;
+        }
+        
+        // Set up event handlers for real-time features
+        function setupRealTimeFeatures() {
+            // Set up editor change events for real-time completion
+            for (const [file, editor] of Object.entries(editors)) {
+                editor.onDidChangeCursorPosition((e) => {
+                    // Request completion after cursor moves
+                    requestRealTimeCompletion();
+                });
+                
+                editor.onDidChangeModelContent((e) => {
+                    // Track last edit time
+                    lastEditTime = Date.now();
+                    
+                    // Check for function changes if the edit is substantial
+                    if (e.changes.some(change => change.text.includes('\n'))) {
+                        detectFunctionChanges(file);
+                    }
+                });
+            }
+            
+            // Handle keyboard shortcuts for real-time suggestions
+            document.addEventListener('keydown', (e) => {
+                // Tab to accept suggestion
+                if (e.key === 'Tab' && isCompletionVisible) {
+                    e.preventDefault();
+                    applyRealTimeSuggestion();
+                }
+                
+                // Escape to dismiss suggestion
+                if (e.key === 'Escape' && isCompletionVisible) {
+                    document.getElementById('autocompleteHint').style.display = 'none';
+                    isCompletionVisible = false;
+                }
+            });
+            
+            // Start real-time function detection
+            startRealTimeFunctionDetection();
+        }
+        
+        // Initialize the features on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Wait for editor initialization
+            setTimeout(() => {
+                setupRealTimeFeatures();
+            }, 2000);
+        });
+
+        // Show function name completion with signature information
+        function showFunctionCompletion(funcSuggestion, position) {
+            if (!funcSuggestion) return;
+            
+            const inlineSuggestion = document.getElementById('inlineFunctionSuggestion');
+            const content = document.getElementById('inlineFunctionContent');
+            
+            // Format the suggestion nicely
+            content.textContent = `${funcSuggestion.name}(${funcSuggestion.signature})`;
+            
+            // Calculate position
+            const editor = editors[currentFile];
+            const editorCoords = editor.getScrolledVisiblePosition(position);
+            const editorContainer = document.querySelector('.editor-container');
+            const containerRect = editorContainer.getBoundingClientRect();
+            
+            inlineSuggestion.style.left = (containerRect.left + editorCoords.left) + 'px';
+            inlineSuggestion.style.top = (containerRect.top + editorCoords.top + 20) + 'px';
+            inlineSuggestion.style.display = 'block';
+            
+            // Store information for accepting the suggestion
+            inlineSuggestion.dataset.position = JSON.stringify(position);
+            inlineSuggestion.dataset.suggestion = funcSuggestion.name + '(' + funcSuggestion.signature + ')';
+            
+            // Setup event handlers if not already set
+            const acceptBtn = inlineSuggestion.querySelector('.accept-btn');
+            const dismissBtn = inlineSuggestion.querySelector('.dismiss-btn');
+            
+            // Clear previous event listeners using cloneNode
+            const newAcceptBtn = acceptBtn.cloneNode(true);
+            const newDismissBtn = dismissBtn.cloneNode(true);
+            acceptBtn.parentNode.replaceChild(newAcceptBtn, acceptBtn);
+            dismissBtn.parentNode.replaceChild(newDismissBtn, dismissBtn);
+            
+            newAcceptBtn.addEventListener('click', acceptFunctionSuggestion);
+            newDismissBtn.addEventListener('click', () => {
+                inlineSuggestion.style.display = 'none';
+            });
+            
+            // Auto-dismiss after 10 seconds
+            setTimeout(() => {
+                if (inlineSuggestion.style.display === 'block') {
+                    inlineSuggestion.style.display = 'none';
+                }
+            }, 10000);
+        }
+        
+        // Accept the function suggestion
+        function acceptFunctionSuggestion() {
+            const inlineSuggestion = document.getElementById('inlineFunctionSuggestion');
+            const positionData = JSON.parse(inlineSuggestion.dataset.position);
+            const suggestion = inlineSuggestion.dataset.suggestion;
+            
+            // Extract current line and determine what to replace
+            const editor = editors[currentFile];
+            const model = editor.getModel();
+            const lineContent = model.getLineContent(positionData.lineNumber);
+            
+            // Find the partial function name being typed
+            const textBeforeCursor = lineContent.substring(0, positionData.column - 1);
+            const match = textBeforeCursor.match(/[a-zA-Z0-9_]+$/);
+            
+            if (match) {
+                const partialName = match[0];
+                const startCol = positionData.column - partialName.length;
+                
+                // Replace the partial name with the full function signature
+                editor.executeEdits('function-suggestion', [
+                    {
+                        range: {
+                            startLineNumber: positionData.lineNumber,
+                            startColumn: startCol,
+                            endLineNumber: positionData.lineNumber,
+                            endColumn: positionData.column
+                        },
+                        text: suggestion
+                    }
+                ]);
+            } else {
+                // If no partial name, just insert at cursor
+                editor.executeEdits('function-suggestion', [
+                    {
+                        range: {
+                            startLineNumber: positionData.lineNumber,
+                            startColumn: positionData.column,
+                            endLineNumber: positionData.lineNumber,
+                            endColumn: positionData.column
+                        },
+                        text: suggestion
+                    }
+                ]);
+            }
+            
+            // Hide the suggestion
+            inlineSuggestion.style.display = 'none';
+        }
+
+        // Function to load files from server
+        function loadFileTree() {
+            const fileTree = document.getElementById('fileTree');
+            const loader = document.getElementById('fileTreeLoader');
+            
+            // Show loader
+            loader.style.display = 'inline-block';
+            
+            // Fetch files from server
+            fetch('/list-files')
+                .then(response => response.json())
+                .then(data => {
+                    // Group files by directory
+                    const filesByDir = {};
+                    
+                    data.files.forEach(file => {
+                        const parts = file.path.split('/');
+                        const dir = parts.length > 1 ? parts[0] : '.';
+                        
+                        if (!filesByDir[dir]) {
+                            filesByDir[dir] = [];
+                        }
+                        
+                        filesByDir[dir].push(file);
+                    });
+                    
+                    // Generate HTML for file tree
+                    let html = '';
+                    
+                    // Examples directory first (always show)
+                    if (filesByDir['examples']) {
+                        html += `
+                            <div class="folder">
+                                <div class="file-item folder-item">
+                                    <i class="fas fa-folder-open file-icon"></i> examples
+                                </div>
+                                <div class="folder-content">
+                        `;
+                        
+                        // Sort files by name
+                        filesByDir['examples'].sort((a, b) => a.name.localeCompare(b.name));
+                        
+                        filesByDir['examples'].forEach(file => {
+                            const icon = getFileIcon(file.type);
+                            html += `
+                                <div class="file-item" data-file="${file.path}">
+                                    <i class="${icon} file-icon"></i> ${file.name}
+                                </div>
+                            `;
+                        });
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // Other directories
+                    Object.keys(filesByDir).forEach(dir => {
+                        if (dir !== 'examples' && dir !== '.') {
+                            html += `
+                                <div class="folder">
+                                    <div class="file-item folder-item">
+                                        <i class="fas fa-folder file-icon"></i> ${dir}
+                                    </div>
+                                    <div class="folder-content">
+                            `;
+                            
+                            // Sort files by name
+                            filesByDir[dir].sort((a, b) => a.name.localeCompare(b.name));
+                            
+                            filesByDir[dir].forEach(file => {
+                                const icon = getFileIcon(file.type);
+                                html += `
+                                    <div class="file-item" data-file="${file.path}">
+                                        <i class="${icon} file-icon"></i> ${file.name}
+                                    </div>
+                                `;
+                            });
+                            
+                            html += `
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    // Root files
+                    if (filesByDir['.']) {
+                        // Sort files by name
+                        filesByDir['.'].sort((a, b) => a.name.localeCompare(b.name));
+                        
+                        filesByDir['.'].forEach(file => {
+                            const icon = getFileIcon(file.type);
+                            html += `
+                                <div class="file-item" data-file="${file.path}">
+                                    <i class="${icon} file-icon"></i> ${file.name}
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    // Insert into file tree
+                    fileTree.innerHTML = `
+                        <div class="p-2">
+                            <button id="refreshFileTree" class="btn btn-sm btn-outline-secondary mb-2">
+                                <i class="fas fa-sync-alt"></i> Refresh Files
+                            </button>
+                            <div id="fileTreeLoader" class="spinner-border text-light spinner-border-sm" role="status" style="display: none;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        ${html}
+                    `;
+                    
+                    // Hide loader
+                    loader.style.display = 'none';
+                    
+                    // Set up click handlers for files
+                    document.querySelectorAll('.file-item:not(.folder-item)').forEach(item => {
+                        item.addEventListener('click', function() {
+                            const filePath = this.getAttribute('data-file');
+                            if (filePath) {
+                                addTab(filePath);
+                            }
+                        });
+                    });
+                    
+                    // Set up click handlers for folders
+                    document.querySelectorAll('.folder-item').forEach(item => {
+                        item.addEventListener('click', function() {
+                            const folderContent = this.parentElement.querySelector('.folder-content');
+                            if (folderContent) {
+                                if (folderContent.style.display === 'none') {
+                                    folderContent.style.display = 'block';
+                                    this.querySelector('.fa-folder').classList.replace('fa-folder', 'fa-folder-open');
+                                } else {
+                                    folderContent.style.display = 'none';
+                                    this.querySelector('.fa-folder-open').classList.replace('fa-folder-open', 'fa-folder');
+                                }
+                            }
+                        });
+                    });
+                    
+                    // Set up refresh button
+                    document.getElementById('refreshFileTree').addEventListener('click', loadFileTree);
+                })
+                .catch(error => {
+                    console.error("Error loading file tree:", error);
+                    fileTree.innerHTML += `<div class="alert alert-danger mt-2">Error loading files: ${error.message}</div>`;
+                    loader.style.display = 'none';
+                });
+        }
+        
+        // Helper function to get file icon
+        function getFileIcon(fileType) {
+            switch(fileType.toLowerCase()) {
+                case 'py':
+                    return 'fab fa-python';
+                case 'js':
+                    return 'fab fa-js';
+                case 'ts':
+                    return 'fab fa-js';
+                case 'html':
+                    return 'fab fa-html5';
+                case 'css':
+                    return 'fab fa-css3';
+                case 'md':
+                    return 'fab fa-markdown';
+                case 'json':
+                    return 'fas fa-code';
+                default:
+                    return 'fas fa-file';
+            }
+        }
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+</body>
+</html> 

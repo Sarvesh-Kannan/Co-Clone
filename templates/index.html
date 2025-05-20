@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Co-Clone - AI Coding Assistant</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .code-editor {
+            width: 100%;
+            height: 500px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background-color: #282c34;
+            color: #f8f8f2;
+            resize: vertical;
+        }
+        .incomplete-editor {
+            width: 100%;
+            height: 200px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background-color: #282c34;
+            color: #f8f8f2;
+            resize: vertical;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .result-container {
+            background-color: #282c34;
+            color: #f8f8f2;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .suggestion-item {
+            background-color: #f0f8ff;
+            border-left: 4px solid #007bff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .suggestion-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .suggestion-code {
+            font-family: 'Courier New', monospace;
+            background-color: #282c34;
+            color: #f8f8f2;
+            padding: 8px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .suggestion-change {
+            display: flex;
+            margin-top: 8px;
+        }
+        .suggestion-old, .suggestion-new {
+            flex: 1;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .suggestion-old {
+            background-color: #ffebee;
+            color: #f44336;
+            margin-right: 5px;
+        }
+        .suggestion-new {
+            background-color: #e8f5e9;
+            color: #4caf50;
+            margin-left: 5px;
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+        }
+        .action-buttons {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4 text-center">Co-Clone - AI Coding Assistant</h1>
+        
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="completion-tab" data-bs-toggle="tab" data-bs-target="#completion" type="button" role="tab" aria-controls="completion" aria-selected="true">Code Completion</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="context-tab" data-bs-toggle="tab" data-bs-target="#context" type="button" role="tab" aria-controls="context" aria-selected="false">Context-Aware Completion</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="function-tab" data-bs-toggle="tab" data-bs-target="#function-changes" type="button" role="tab" aria-controls="function-changes" aria-selected="false">Function Change Tracking</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="myTabContent">
+            <!-- Code Completion Tab -->
+            <div class="tab-pane fade show active" id="completion" role="tabpanel" aria-labelledby="completion-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Code Completion</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>Type or paste your code below, and Co-Clone will suggest completions.</p>
+                        <textarea id="codeInput" class="code-editor" placeholder="Type or paste your code here..."></textarea>
+                        <div class="mt-3">
+                            <button id="completeBtn" class="btn btn-primary">Get Completion</button>
+                        </div>
+                        <div id="completionLoading" class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Generating completion...</p>
+                        </div>
+                        <div class="mt-3">
+                            <h5>Completion Result:</h5>
+                            <div id="completionResult" class="result-container">Results will appear here...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Context-Aware Completion Tab -->
+            <div class="tab-pane fade" id="context" role="tabpanel" aria-labelledby="context-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Context-Aware Completion</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>Paste your full codebase for context, then specify the incomplete part to be fixed.</p>
+                        <textarea id="fullCodeInput" class="code-editor" placeholder="Paste your full codebase here..."></textarea>
+                        <p class="mt-3 mb-1">Incomplete part that needs completion:</p>
+                        <textarea id="incompleteInput" class="incomplete-editor" placeholder="Paste the specific part that needs completion..."></textarea>
+                        <div class="mt-3">
+                            <button id="understandBtn" class="btn btn-primary">Complete Based on Context</button>
+                        </div>
+                        <div id="understandLoading" class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Analyzing code and generating completion...</p>
+                        </div>
+                        <div class="mt-3">
+                            <h5>Implementation Result:</h5>
+                            <div id="understandResult" class="result-container">Results will appear here...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Function Change Tracking Tab -->
+            <div class="tab-pane fade" id="function-changes" role="tabpanel" aria-labelledby="function-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Function Change Tracking</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>Monitor function changes across your codebase. Co-Clone will detect when you change a function signature and suggest updates to all usages.</p>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="filePathInput" class="form-label">File Path:</label>
+                                <input type="text" id="filePathInput" class="form-control" placeholder="Enter file path (e.g., examples/python_example.py)">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="fileTypeSelect" class="form-label">File Type:</label>
+                                <select id="fileTypeSelect" class="form-select">
+                                    <option value="python">Python (.py)</option>
+                                    <option value="javascript">JavaScript (.js)</option>
+                                    <option value="typescript">TypeScript (.ts)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <textarea id="functionCodeInput" class="code-editor" placeholder="Paste your updated function code here..."></textarea>
+                        
+                        <div class="mt-3">
+                            <button id="detectChangesBtn" class="btn btn-primary">Detect Function Changes</button>
+                            <button id="scanCodebaseBtn" class="btn btn-secondary ms-2">Scan Codebase</button>
+                        </div>
+                        
+                        <div id="functionChangeLoading" class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Analyzing function changes...</p>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h5>Function Changes & Update Suggestions:</h5>
+                            <div id="updateSuggestions" class="mt-3">
+                                <div class="alert alert-info">
+                                    No function changes detected. Try changing a function signature and click "Detect Function Changes".
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h5>Function Definitions Found in Codebase:</h5>
+                            <div id="functionDefinitions" class="result-container">
+                                Scan the codebase to see function definitions.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Code Completion
+        document.getElementById('completeBtn').addEventListener('click', async () => {
+            const codeInput = document.getElementById('codeInput').value;
+            const cursorPosition = codeInput.length; // For simplicity, assuming cursor is at the end
+            
+            document.getElementById('completionLoading').style.display = 'block';
+            document.getElementById('completionResult').textContent = 'Loading...';
+            
+            try {
+                const response = await fetch('/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: codeInput, position: cursorPosition })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('completionResult').textContent = `Error: ${data.error}`;
+                } else {
+                    document.getElementById('completionResult').textContent = data.completion;
+                }
+            } catch (error) {
+                document.getElementById('completionResult').textContent = `Error: ${error.message}`;
+            } finally {
+                document.getElementById('completionLoading').style.display = 'none';
+            }
+        });
+        
+        // Context-Aware Completion
+        document.getElementById('understandBtn').addEventListener('click', async () => {
+            const fullCode = document.getElementById('fullCodeInput').value;
+            const incompletePart = document.getElementById('incompleteInput').value;
+            
+            document.getElementById('understandLoading').style.display = 'block';
+            document.getElementById('understandResult').textContent = 'Loading...';
+            
+            try {
+                const response = await fetch('/understand', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: fullCode, incomplete_part: incompletePart })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('understandResult').textContent = `Error: ${data.error}`;
+                } else {
+                    document.getElementById('understandResult').textContent = data.implementation;
+                }
+            } catch (error) {
+                document.getElementById('understandResult').textContent = `Error: ${error.message}`;
+            } finally {
+                document.getElementById('understandLoading').style.display = 'none';
+            }
+        });
+        
+        // Function Change Detection
+        document.getElementById('detectChangesBtn').addEventListener('click', async () => {
+            const filePath = document.getElementById('filePathInput').value;
+            const functionCode = document.getElementById('functionCodeInput').value;
+            
+            if (!filePath || !functionCode) {
+                alert('Please enter both a file path and the function code.');
+                return;
+            }
+            
+            document.getElementById('functionChangeLoading').style.display = 'block';
+            document.getElementById('updateSuggestions').innerHTML = 'Loading...';
+            
+            try {
+                const response = await fetch('/detect-changes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_path: filePath, code: functionCode })
+                });
+                
+                const data = await response.json();
+                
+                if (data.update_suggestions && data.update_suggestions.length > 0) {
+                    displayUpdateSuggestions(data.update_suggestions);
+                } else {
+                    document.getElementById('updateSuggestions').innerHTML = `
+                        <div class="alert alert-info">
+                            No function changes detected that require updates to other files.
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('updateSuggestions').innerHTML = `
+                    <div class="alert alert-danger">
+                        Error: ${error.message}
+                    </div>
+                `;
+            } finally {
+                document.getElementById('functionChangeLoading').style.display = 'none';
+            }
+        });
+        
+        // Scan Codebase
+        document.getElementById('scanCodebaseBtn').addEventListener('click', async () => {
+            document.getElementById('functionChangeLoading').style.display = 'block';
+            document.getElementById('functionDefinitions').textContent = 'Scanning codebase...';
+            
+            try {
+                const response = await fetch('/scan-codebase');
+                const data = await response.json();
+                
+                // Display function definitions
+                displayFunctionDefinitions(data);
+            } catch (error) {
+                document.getElementById('functionDefinitions').textContent = `Error scanning codebase: ${error.message}`;
+            } finally {
+                document.getElementById('functionChangeLoading').style.display = 'none';
+            }
+        });
+        
+        // Helper function to display update suggestions
+        function displayUpdateSuggestions(suggestions) {
+            const container = document.getElementById('updateSuggestions');
+            container.innerHTML = '';
+            
+            suggestions.forEach((suggestion, index) => {
+                const suggestionEl = document.createElement('div');
+                suggestionEl.className = 'suggestion-item';
+                suggestionEl.innerHTML = `
+                    <div class="suggestion-header">
+                        Function: <span class="text-primary">${suggestion.function}</span> in file <span class="text-secondary">${suggestion.file}</span> line ${suggestion.line}
+                    </div>
+                    <div class="suggestion-change">
+                        <div class="suggestion-old">Old: ${escapeHtml(suggestion.old_code)}</div>
+                        <div class="suggestion-new">New: ${escapeHtml(suggestion.new_code)}</div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-outline-success apply-suggestion" data-index="${index}">Apply This Suggestion</button>
+                    </div>
+                `;
+                container.appendChild(suggestionEl);
+            });
+            
+            // Add event listeners to apply buttons
+            document.querySelectorAll('.apply-suggestion').forEach(button => {
+                button.addEventListener('click', () => {
+                    const index = parseInt(button.getAttribute('data-index'));
+                    const suggestion = suggestions[index];
+                    alert(`In a complete implementation, this would apply the change to ${suggestion.file} line ${suggestion.line}.\n\nOld: ${suggestion.old_code}\nNew: ${suggestion.new_code}`);
+                });
+            });
+        }
+        
+        // Helper function to display function definitions
+        function displayFunctionDefinitions(data) {
+            const container = document.getElementById('functionDefinitions');
+            
+            if (!data.definitions || Object.keys(data.definitions).length === 0) {
+                container.textContent = 'No function definitions found in the codebase.';
+                return;
+            }
+            
+            let html = '<h6>Found Functions:</h6><ul class="list-group">';
+            
+            for (const [funcName, funcData] of Object.entries(data.definitions)) {
+                const usageCount = data.usages[funcName] ? data.usages[funcName].length : 0;
+                html += `
+                    <li class="list-group-item">
+                        <strong>${funcName}</strong> (${usageCount} usages)
+                        <div><small class="text-muted">File: ${funcData.file}</small></div>
+                        <div><small class="text-muted">Signature: ${funcData.signature}</small></div>
+                    </li>
+                `;
+            }
+            
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+        
+        // Helper function to escape HTML
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+        // Auto-populate file extension when the file type is changed
+        document.getElementById('fileTypeSelect').addEventListener('change', () => {
+            const fileType = document.getElementById('fileTypeSelect').value;
+            const filePathInput = document.getElementById('filePathInput');
+            const filePath = filePathInput.value;
+            
+            // Remove any existing extension
+            let basePath = filePath.replace(/\.(py|js|ts)$/, '');
+            
+            // Add the appropriate extension
+            if (fileType === 'python') {
+                filePathInput.value = basePath + '.py';
+            } else if (fileType === 'javascript') {
+                filePathInput.value = basePath + '.js';
+            } else if (fileType === 'typescript') {
+                filePathInput.value = basePath + '.ts';
+            }
+        });
+        
+        // Scan codebase on page load
+        window.addEventListener('load', () => {
+            document.getElementById('scanCodebaseBtn').click();
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
