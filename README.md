@@ -184,6 +184,4 @@ Co-Clone's architecture is based on these key components:
 - Actual distributed proxy instances for true geographic distribution
 - Enhanced streaming and cancellation optimizations
 
-## License
-
-MIT 
+**DEMO VIDEO HAS BEEN ATTACHED IN THE REPOSITORY MAKE SURE TO WATCH IT**
